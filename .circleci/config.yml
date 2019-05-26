@@ -75,7 +75,7 @@ workflows:
                 - master
       - build:
           requires:
-            - test-api
+            - test
           filters:
             branches:
               only:
