@@ -1,0 +1,89 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/node:10.15
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install Dependencies
+          command: npm ci
+      - run:
+          name: Build
+          command: docker build -t jamcswain/gitreview-api .
+      - run:
+          name: Login to Docker Hub
+          command: echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+      - run:
+          name: Push
+          command: docker push jamcswain/gitreview-api
+
+  test:
+    docker:
+      - image: circleci/node:10.15
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install CodeCov
+          command: sudo npm install -g codecov
+      - run:
+          name: Install Dependencies
+          command: npm ci
+      - run:
+          name: Test
+          command: npm run test || true
+      - run:
+          name: Upload Coverage
+          command: npm run coverage
+
+  deploy:
+    docker:
+      - image: alpine
+    steps:
+      - run:
+          name: Install SSH
+          command: apk add --no-cache openssh
+      - add_ssh_keys:
+          fingerprints:
+            - "9b:96:d8:66:2b:5f:a3:15:c5:cb:e5:24:0f:4f:bc:25"
+      - run:
+          name: Add known_hosts
+          command: echo "$SSH_HOSTNAME,$SSH_IP $SSH_SCHEME $SSH_SERVER_KEY" >> ~/.ssh/known_hosts
+      - run:
+          name: Pull Docker images
+          command: ssh $SSH_USERNAME@$SSH_HOSTNAME docker-compose -f gitreview/docker-compose.yml pull
+      - run:
+          name: Bring docker-compose up
+          command: ssh $SSH_USERNAME@$SSH_HOSTNAME docker-compose -f gitreview/docker-compose.yml up -d
+
+workflows:
+  version: 2
+  workflow:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only:
+                - master
+      - build:
+          requires:
+            - test-api
+          filters:
+            branches:
+              only:
+                - master
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
