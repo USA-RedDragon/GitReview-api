@@ -21,3 +21,12 @@ module.exports.GETApiUsers = (req, res) => {
         res.json({ message: 'Query error' }).status(401);
     });
 };
+
+module.exports.GETApiUsersID = (req, res) => {
+    req.db.users.findByPk(req.params.id).then((user) => {
+        res.json(user);
+    }).catch((err) => {
+        console.log(err);
+        res.json({ message: 'User not found' }).status(401);
+    });
+};
